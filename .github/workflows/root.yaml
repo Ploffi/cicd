@@ -83,7 +83,7 @@ jobs:
    if: needs.extract-pr-info.outputs.has-pr-reference == 'true'
    uses: jetbrains-junie/junie-workflows/.github/workflows/solve_issue.yml@issue-workflow
    with:
-    github_issue_url: ${{ steps.extract-pr-branch.outputs.issue-html-url }}
-    checkout_ref: ${{ steps.extract-pr-branch.outputs.branch-name }}
+    github_issue_url: ${{ needs.extract-pr-info.outputs.issue-html-url }}
+    checkout_ref: ${{ needs.extract-pr-info.outputs.branch-name }}
    secrets:
     JUNIE_INGRAZZIO_TOKEN: ${{ secrets.JUNIE_INGRAZZIO_TOKEN }}
