@@ -1,0 +1,89 @@
+name: Root workflow
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: write
+
+on:
+  workflow_call:
+      
+jobs:
+  extract-pr-info:
+    runs-on: ubuntu-latest
+    outputs:
+     has-pr-reference: ${{ steps.extract-pr-branch.outputs.has-pr-reference }}
+     branch-name: ${{ steps.extract-pr-branch.outputs.branch-name }}
+     issue-html-url: ${{ steps.extract-pr-branch.outputs.issue-html-url }}
+    steps:
+     - name: Extract PR branch from comment
+       id: extract-pr-branch
+       uses: actions/github-script@v7
+       with:
+         script: |
+           const context = require('@actions/github/lib/context');
+           
+           // Check if this workflow was triggered by issue_comment
+           if (context.eventName !== 'issue_comment') {
+             console.log('Not triggered by issue comment');
+             core.setOutput('has-pr-reference', 'false');
+             return;
+           }
+           
+           // Get the comment body
+           const commentBody = context.payload.comment.body;
+           console.log('Comment body:', commentBody);
+           
+           // Check for @jetbrains-junie mention
+           if (!commentBody.includes('@jetbrains-junie')) {
+             console.log('Comment does not contain @jetbrains-junie mention');
+             core.setOutput('has-pr-reference', 'false');
+             return;
+           }
+           
+           console.log('Found @jetbrains-junie mention');
+           
+           // Find the first PR reference (#123 pattern)
+           const prReferenceMatch = commentBody.match(/#(\d+)/);
+           
+           if (!prReferenceMatch) {
+             console.log('No PR references found');
+             core.setOutput('has-pr-reference', 'false');
+             return;
+           }
+           
+           const prNumber = prReferenceMatch[1];
+           console.log('Found first PR reference:', prNumber);
+           
+           try {
+             // Get PR details to extract the branch
+             const { data: pr } = await github.rest.pulls.get({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               pull_number: parseInt(prNumber)
+             });
+             
+             const branchName = pr.head.ref;
+             const issueHtmlUrl = context.payload.issue.html_url;
+             
+             console.log('PR branch:', branchName);
+             console.log('Issue HTML URL:', issueHtmlUrl);
+             
+             core.setOutput('has-pr-reference', 'true');
+             core.setOutput('branch-name', branchName);
+             core.setOutput('issue-html-url', issueHtmlUrl);
+             
+           } catch (error) {
+             console.error('Error fetching PR details:', error.message);
+             core.setOutput('has-pr-reference', 'false');
+           }
+
+  call-junie:
+   needs: extract-pr-info
+   if: needs.extract-pr-info.outputs.has-pr-reference == 'true'
+   uses: jetbrains-junie/junie-workflows/.github/workflows/solve_issue.yml@issue-workflow
+   with:
+    github_issue_url: ${{ steps.extract-pr-branch.outputs.issue-html-url }}
+    checkout_ref: ${{ steps.extract-pr-branch.outputs.branch-name }}
+   secrets:
+    JUNIE_INGRAZZIO_TOKEN: ${{ secrets.JUNIE_INGRAZZIO_TOKEN }}
