@@ -21,9 +21,6 @@ jobs:
        uses: actions/github-script@v7
        with:
          script: |
-           const context = require('@actions/github/lib/context');
-           
-           // Check if this workflow was triggered by issue_comment
            if (context.eventName !== 'issue_comment') {
              console.log('Not triggered by issue comment');
              core.setOutput('has-pr-reference', 'false');
